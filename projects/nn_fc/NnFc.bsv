@@ -115,12 +115,16 @@ module mkMacPe#(Bit#(PeWaysLog) peIdx) (MacPeIfc);
 	endrule
 	method Action putInput(Float v, Bit#(8) input_idx);
 		inputQ.enq(tuple2(v,input_idx));
+		$display("PE#%0d cycle:%0d putInput idx:%0d value:%x", peIdx, cycleCount, input_idx, v);
 	endmethod
 	method Action putWeight(Float w);
 		weightInQ.enq(w);
+		$display("PE#%0d cycle:%0d puWeight %x", peIdx, cycleCount, w);
 	endmethod
 	method ActionValue#(Tuple3#(Float, Bit#(8), Bit#(8))) resultGet;
 		outputQ.deq;
+		let d = outputQ.first;
+		$display("PE#%0d cycle:%0d resultGet inidx:%0d outidx:%0d", peIdx, cycleCount, tpl_2(d), tpl_3(d));
 		return outputQ.first;
 	endmethod
 	method Bool resultExist;
@@ -183,10 +187,12 @@ module mkNnFc(NnFcIfc);
 
 	method Action dataIn(Float value, Bit#(8) input_idx);
 		dataInQs[0].enq(tuple2(value,input_idx));
+		$display("dataIn NNFC idx:%0x value:%0x", input_idx, value);
 	endmethod
 	method Action weightIn(Float weight);
 		weightInQs[0].enq(weight);
-		//$write( "Received weight %x\n", weight );
+		$write( "Received weight %x\n", weight );
+
 	endmethod
 	method ActionValue#(Tuple3#(Float, Bit#(8), Bit#(8))) dataOut;
 		resultOutQs[0].deq;
