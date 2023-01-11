@@ -34,15 +34,15 @@ module mkMacPe#(Bit#(PeWaysLog) peIdx) (MacPeIfc);
 	FloatTwoOp fmult <- mkFloatMult;
 	FloatTwoOp fadd <- mkFloatAdd;
 	FIFO#(Float) addForwardQ <- mkSizedFIFO(4);
-	FIFO#(Tuple3#(Bit#(8),Bit#(8),Bit#(16))) partialSumIdxQ3 <- mkFIFO1;
-	FIFO#(Tuple3#(Bit#(8),Bit#(8),Bit#(16))) partialSumIdxQ2 <- mkSizedBRAMFIFO(128);
-	FIFO#(Tuple3#(Bit#(8),Bit#(8),Bit#(16))) partialSumIdxQ1 <- mkFIFO1;
+	FIFO#(Tuple3#(Bit#(8),Bit#(8),Bit#(20))) partialSumIdxQ3 <- mkFIFO1;
+	FIFO#(Tuple3#(Bit#(8),Bit#(8),Bit#(20))) partialSumIdxQ2 <- mkSizedBRAMFIFO(128);
+	FIFO#(Tuple3#(Bit#(8),Bit#(8),Bit#(20))) partialSumIdxQ1 <- mkFIFO1;
 	FIFO#(Float) partialSumQ <- mkSizedBRAMFIFO(128);
 	FIFO#(Float) partialSumQ2 <- mkFIFO;
 
 	Reg#(Bit#(8)) lastInputIdx <- mkReg(0);
 	Reg#(Bit#(8)) curOutputIdx <- mkReg(zeroExtend(peIdx));
-	Reg#(Bit#(12)) curMacIdx <- mkReg(0);
+	Reg#(Bit#(20)) curMacIdx <- mkReg(0);
 	rule enqMac;
 		inputQ.deq;
 		Float inf = tpl_1(inputQ.first);
@@ -50,8 +50,8 @@ module mkMacPe#(Bit#(PeWaysLog) peIdx) (MacPeIfc);
 		weightQ.deq;
 		Float wf = weightQ.first;
 
-		partialSumIdxQ1.enq(tuple3(ini,curOutputIdx,zeroExtend(curMacIdx)));
-		if ( curMacIdx + 1 >= fromInteger(inputDim) ) begin
+		partialSumIdxQ1.enq(tuple3(ini,curOutputIdx,zeroExtend(curMacIdx>>6)));
+		if ( (curMacIdx + 1) == fromInteger(inputDim) <<6 ) begin
 			curMacIdx <= 0;
 			let nextOutIdx = curOutputIdx + fromInteger(valueOf(PeWays));
 			if ( nextOutIdx >= fromInteger(outputDim) ) begin
@@ -64,7 +64,7 @@ module mkMacPe#(Bit#(PeWaysLog) peIdx) (MacPeIfc);
 		end
 		fmult.put(inf, wf);
 		
-		if ( curMacIdx == 0 ) begin
+		if ( curMacIdx < 64) begin
 			addForwardQ.enq(unpack(0)); // float '0'
 		end else begin
 			partialSumQ2.deq;
@@ -97,8 +97,10 @@ module mkMacPe#(Bit#(PeWaysLog) peIdx) (MacPeIfc);
 		let psi = partialSumIdxQ3.first;
 
 		partialSumQ.deq;
+		//$write( "PE#%d filterDoneResults %d %d macidx:%d\n", peIdx, tpl_1(psi), tpl_2(psi), tpl_3(psi) );
+
 		let ps = partialSumQ.first;
-		if (tpl_3(psi)+1 == fromInteger(inputDim) ) begin
+		if ((tpl_3(psi)+1) == fromInteger(inputDim) ) begin
 			outputQ.enq(tuple3(ps, tpl_1(psi), tpl_2(psi)));
 			//$write( "Row done %d %d\n", tpl_1(psi), tpl_2(psi) );
 		end else begin
@@ -109,22 +111,32 @@ module mkMacPe#(Bit#(PeWaysLog) peIdx) (MacPeIfc);
 
 
 	FIFO#(Float) weightInQ <- mkFIFO;
+
+	Reg#(Float) weightReplicateReg <- mkReg(?);
+	Reg#(Bit#(16)) weightReplicateCnt <- mkReg(0);
 	rule relayWeightIn;
-		weightInQ.deq;
-		weightQ.enq(weightInQ.first);
+		if ( weightReplicateCnt == 0 ) begin
+			weightInQ.deq;
+			weightQ.enq(weightInQ.first);
+			weightReplicateReg <= weightInQ.first;
+			weightReplicateCnt <= 63;
+		end else begin
+			weightReplicateCnt <= weightReplicateCnt - 1;
+			weightQ.enq(weightReplicateReg);
+		end
 	endrule
 	method Action putInput(Float v, Bit#(8) input_idx);
 		inputQ.enq(tuple2(v,input_idx));
-		$display("PE#%0d cycle:%0d putInput idx:%0d value:%x", peIdx, cycleCount, input_idx, v);
+		//$display("PE#%0d cycle:%0d putInput idx:%0d value:%x", peIdx, cycleCount, input_idx, v);
 	endmethod
 	method Action putWeight(Float w);
 		weightInQ.enq(w);
-		$display("PE#%0d cycle:%0d puWeight %x", peIdx, cycleCount, w);
+		//$display("PE#%0d cycle:%0d puWeight %x", peIdx, cycleCount, w);
 	endmethod
 	method ActionValue#(Tuple3#(Float, Bit#(8), Bit#(8))) resultGet;
 		outputQ.deq;
 		let d = outputQ.first;
-		$display("PE#%0d cycle:%0d resultGet inidx:%0d outidx:%0d", peIdx, cycleCount, tpl_2(d), tpl_3(d));
+		//$display("PE#%0d cycle:%0d resultGet inidx:%0d outidx:%0d", peIdx, cycleCount, tpl_2(d), tpl_3(d));
 		return outputQ.first;
 	endmethod
 	method Bool resultExist;
@@ -187,12 +199,11 @@ module mkNnFc(NnFcIfc);
 
 	method Action dataIn(Float value, Bit#(8) input_idx);
 		dataInQs[0].enq(tuple2(value,input_idx));
-		$display("dataIn NNFC idx:%0x value:%0x", input_idx, value);
+		//$display("dataIn NNFC idx:%0x value:%0x", input_idx, value);
 	endmethod
 	method Action weightIn(Float weight);
 		weightInQs[0].enq(weight);
-		$write( "Received weight %x\n", weight );
-
+		//$write( "Received weight %x\n", weight );
 	endmethod
 	method ActionValue#(Tuple3#(Float, Bit#(8), Bit#(8))) dataOut;
 		resultOutQs[0].deq;

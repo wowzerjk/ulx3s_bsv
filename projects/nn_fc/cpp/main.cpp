@@ -80,8 +80,8 @@ void* swmain(void* param) {
 	for ( int i = 0; i < input_dim*output_dim; i++ ) {
 		// x xx;
 		// xx.i = i;
-		// weights[i] = 0;
 		// weights[i] = xx.f;
+		weights[i] = 0;
 		if ( rand()%4 == 0 ) {
 			weights[i] = ((float)(rand()%10000))/1000;
 		}
@@ -90,11 +90,11 @@ void* swmain(void* param) {
 	for ( int i = 0; i < input_dim*input_cnt; i++ ) {
 		// x xx;
 		// xx.i = i;
-		// inputs[i] = 0;
+		// inputs[i] = xx.f;
+		inputs[i] = 0;
 		if ( rand()%4 == 0 ) {
 			inputs[i] = ((float)(rand()%10000))/1000;
 		}
-		inputs[i] = xx.f;
 	}
 	float* answer = (float*)malloc(sizeof(float)*output_dim*input_cnt);
 	float* answergolden = (float*)malloc(sizeof(float)*output_dim*input_cnt);

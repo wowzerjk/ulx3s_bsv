@@ -8,6 +8,7 @@ extern FC_Result recv_result();
 void nn_fc(float* matrix, float* input, int input_cnt, int input_dim, int output_dim, float* answer) {
 
 	int pe_ways = 16;
+	int input_batch = 64;
 
 	for ( int i = 0; i < output_dim/pe_ways; i++ ) {
 		for ( int j = 0; j < input_dim; j++ ) {
@@ -18,10 +19,12 @@ void nn_fc(float* matrix, float* input, int input_cnt, int input_dim, int output
 	}
 
 	int done_cnt = 0;
-	for ( int i = 0; i < input_cnt; i++ ) {
+	for ( int i = 0; i < input_cnt/input_batch; i++ ) {
 		for ( int j = 0; j < output_dim/pe_ways; j++ ) {
 			for ( int k = 0; k < input_dim; k++ ) {
-				send_input(input[i*input_dim + k], i);
+				for ( int l = 0; l < input_batch; ++l ) {
+					send_input(input[(i*input_batch+l)*input_dim + k], (i*input_batch+l));
+				}
 			}
 
 			FC_Result res = recv_result();
