@@ -51,7 +51,7 @@ module mkMacPe#(Bit#(PeWaysLog) peIdx) (MacPeIfc);
 		Float wf = weightQ.first;
 
 		partialSumIdxQ1.enq(tuple3(ini,curOutputIdx,zeroExtend(curMacIdx>>6)));
-		if ( (curMacIdx + 1) == fromInteger(inputDim) <<6 ) begin
+		if ( (curMacIdx + 1) >> 6 == fromInteger(inputDim) ) begin
 			curMacIdx <= 0;
 			let nextOutIdx = curOutputIdx + fromInteger(valueOf(PeWays));
 			if ( nextOutIdx >= fromInteger(outputDim) ) begin
